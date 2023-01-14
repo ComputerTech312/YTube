@@ -15,7 +15,7 @@ BNAME = 'YT-Info'
 BSERVER = 'irc.rizon.net'
 BPORT = '+6697'
 
-API_KEY = "AIzaSyBFIemVpxbkMMlfUcKtXQvLGR7TjUVeMQE"
+API_KEY = "Your-API-Key"
 
 ircsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 connected = False
