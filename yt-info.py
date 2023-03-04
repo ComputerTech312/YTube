@@ -8,10 +8,9 @@ import datetime
 import time
 from os import path
 
-
-BNICK = 'YT-Info-2'
-BIDENT = 'YT-Info'
-BNAME = 'YT-Info'
+BNICK = 'YTube'
+BIDENT = 'YTube'
+BNAME = 'YTube'
 BSERVER = 'irc.rizon.net'
 BPORT = '+6697'
 
@@ -32,7 +31,6 @@ formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 console.setFormatter(formatter)
 logging.getLogger('').addHandler(console)
 
-
 def decode(bytes):
     try: 
         text = bytes.decode('utf-8')
@@ -45,7 +43,6 @@ def decode(bytes):
             except UnicodeDecodeError:
                 text = bytes.decode('cp1252')
     return text
-
 
 def ircsend(msg):
     if msg != '':
@@ -82,11 +79,9 @@ def connect():
     ircsend(f'NICK {BNICK}')
     ircsend(f'USER {BIDENT} * * :{BNAME}')
 
-
 def save_channel(channel):
     with open('channels.txt', 'a') as f:
         f.write(channel + '\n')
-
 
 def join_saved_channels():
     if not path.exists('channels.txt'):
@@ -99,32 +94,52 @@ def join_saved_channels():
                 ircsend(f'JOIN {channel.strip()}')
                 print(f'JOIN {channel.strip()}')
 
-
 def search_youtube(query):
     url = f'https://www.googleapis.com/youtube/v3/search?part=snippet&q={query}&key={API_KEY}'
-    response = requests.get(url)
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error while making request to YouTube API: {e}")
+        return "Error while making request to YouTube API."
+
     data = json.loads(response.text)
     if 'items' in data:
-        video_id = data['items'][0]['id']['videoId']
-        title = data['items'][0]['snippet']['title']
+        try:
+            video_id = data['items'][0]['id']['videoId']
+            title = data['items'][0]['snippet']['title']
+        except KeyError:
+            logging.error("Unable to find videoId or title in API response.")
+            return "Unable to find videoId or title in API response."
+        
         video_url = f"https://www.youtube.com/watch?v={video_id}"
         video_statistics_url = f'https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails&id={video_id}&key={API_KEY}'
-        response = requests.get(video_statistics_url)
+
+        try:
+            response = requests.get(video_statistics_url)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error while making request to YouTube API: {e}")
+            return "Error while making request to YouTube API."
+
         data = json.loads(response.text)
         if 'items' in data:
-            view_count = format(int(data['items'][0]['statistics']['viewCount']), ",")
-            duration_str = data['items'][0]['contentDetails']['duration']
-            duration_match = re.search(r"(\d+)M(\d+)S", duration_str)
-            if duration_match:
-                duration = datetime.timedelta(minutes=int(duration_match.group(1)), seconds=int(duration_match.group(2)))
-                return f"Title: {title} - {video_url} - Views: {view_count} - Duration: {duration}"
-            else:
-                return "No results found."
+            try:
+                view_count = format(int(data['items'][0]['statistics']['viewCount']), ",")
+                duration_str = data['items'][0]['contentDetails']['duration']
+                duration_match = re.search(r"(\d+)M(\d+)S", duration_str)
+                if duration_match:
+                    duration = datetime.timedelta(minutes=int(duration_match.group(1)), seconds=int(duration_match.group(2)))
+                    return f"Title: {title} - {video_url} - Views: {view_count} - Duration: {duration}"
+                else:
+                    return "No results found."
+            except KeyError:
+                logging.error("Unable to find statistics or contentDetails in API response.")
+                return "Unable to find statistics or contentDetails in API response."
         else:
             return "No results found."
     else:
         return "No results found."
-
 
 def main():
     global connected
@@ -165,6 +180,5 @@ def main():
             video_id = match.group(1)
             result = search_youtube(video_id)
             ircsend(f'PRIVMSG {channel} :{result}')
-
 
 main()
